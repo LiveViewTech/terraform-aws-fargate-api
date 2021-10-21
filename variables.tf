@@ -159,6 +159,22 @@ variable "autoscaling_config" {
   })
   description = "Configuration for default autoscaling policies and alarms. Set to null if you want to set up your own autoscaling policies and alarms."
 }
+variable "codedeploy_config" {
+  type = object({
+    codedeploy_service_role_arn = string
+    codedeploy_termination_wait_time = number
+    codedeploy_lifecycle_hooks = object({
+      BeforeInstall         = string
+      AfterInstall          = string
+      AfterAllowTestTraffic = string
+      BeforeAllowTraffic    = string
+      AfterAllowTraffic     = string
+    })
+    codedeploy_test_listener_port = number
+
+  })
+  description = "Configuration for default codedeploy actions"
+}
 variable "log_retention_in_days" {
   type        = number
   description = "CloudWatch log group retention in days. Defaults to 120."

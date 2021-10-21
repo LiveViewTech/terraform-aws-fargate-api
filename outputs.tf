@@ -15,11 +15,11 @@ output "task_definition" {
 }
 
 output "codedeploy_deployment_group" {
-  value = aws_codedeploy_deployment_group.deploymentgroup
+  value = var.codedeploy_config != null ? aws_codedeploy_deployment_group.deploymentgroup : null
 }
 
 output "codedeploy_appspec_json_file" {
-  value = local_file.appspec_json.filename
+  value = var.codedeploy_config != null ? local_file.appspec_json[0].filename : null
 }
 
 output "alb" {
