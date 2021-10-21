@@ -79,6 +79,28 @@ locals {
       volumesFrom = []
     }
   ]
+  hooks = var.codedeploy_config != null ? setsubtract([
+    for hook in keys(var.codedeploy_config.codedeploy_lifecycle_hooks) :
+    zipmap([hook], [lookup(var.codedeploy_config.codedeploy_lifecycle_hooks, hook, null)])
+    ], [
+    {
+      BeforeInstall = null
+    },
+    {
+      AfterInstall = null
+    },
+    {
+      AfterAllowTestTraffic = null
+    },
+    {
+      BeforeAllowTraffic = null
+    },
+    {
+      AfterAllowTraffic = null
+    }
+  ]) : null
+
+  codedeploy_test_listener_port = var.codedeploy_config != null ? var.codedeploy_config.codedeploy_test_listener_port : null
 }
 
 # ==================== ALB ====================
@@ -121,6 +143,56 @@ resource "aws_security_group" "alb-sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
   tags = var.tags
+}
+resource "aws_alb_target_group" "blue" {
+  name     = "${var.app_name}-tgb"
+  port     = var.container_port
+  protocol = "HTTP"
+  vpc_id   = var.vpc_id
+
+  load_balancing_algorithm_type = "least_outstanding_requests"
+  target_type                   = "ip"
+  deregistration_delay          = var.target_group_deregistration_delay
+  stickiness {
+    type    = "lb_cookie"
+    enabled = var.target_group_sticky_sessions
+  }
+  health_check {
+    path                = var.health_check_path
+    matcher             = var.health_check_matcher
+    interval            = var.health_check_interval
+    timeout             = var.health_check_timeout
+    healthy_threshold   = var.health_check_healthy_threshold
+    unhealthy_threshold = var.health_check_unhealthy_threshold
+  }
+  tags = var.tags
+
+  depends_on = [aws_alb.alb]
+}
+resource "aws_alb_target_group" "green" {
+  name     = "${var.app_name}-tgg"
+  port     = var.container_port
+  protocol = "HTTP"
+  vpc_id   = var.vpc_id
+
+  load_balancing_algorithm_type = "least_outstanding_requests"
+  target_type                   = "ip"
+  deregistration_delay          = var.target_group_deregistration_delay
+  stickiness {
+    type    = "lb_cookie"
+    enabled = var.target_group_sticky_sessions
+  }
+  health_check {
+    path                = var.health_check_path
+    matcher             = var.health_check_matcher
+    interval            = var.health_check_interval
+    timeout             = var.health_check_timeout
+    healthy_threshold   = var.health_check_healthy_threshold
+    unhealthy_threshold = var.health_check_unhealthy_threshold
+  }
+  tags = var.tags
+
+  depends_on = [aws_alb.alb]
 }
 resource "aws_alb_target_group" "tg" {
   name     = "${var.app_name}-tg"
@@ -178,9 +250,9 @@ resource "aws_alb_listener" "http_to_https" {
   }
 }
 resource "aws_alb_listener" "test_listener" {
-  count             = var.codedeploy_test_listener_port != null ? 1 : 0
+  count             = var.codedeploy_config != null ? 1 : 0
   load_balancer_arn = aws_alb.alb.arn
-  port              = var.codedeploy_test_listener_port
+  port              = local.codedeploy_test_listener_port
   protocol          = "HTTPS"
   certificate_arn   = var.https_certificate_arn
   default_action {
@@ -472,14 +544,16 @@ resource "aws_cloudwatch_metric_alarm" "down" {
 
 # ==================== CodeDeploy ====================
 resource "aws_codedeploy_app" "app" {
+  count      = var.codedeploy_config != null ? 1 : 0
   name             = "${var.app_name}-codedeploy"
   compute_platform = "ECS"
 }
 
 resource "aws_codedeploy_deployment_group" "deploymentgroup" {
-  app_name               = aws_codedeploy_app.app.name
+  count      = var.codedeploy_config != null ? 1 : 0
+  app_name               = aws_codedeploy_app.app[0].name
   deployment_group_name  = "${var.app_name}-deployment-group"
-  service_role_arn       = var.codedeploy_service_role_arn
+  service_role_arn       = var.codedeploy_config.codedeploy_service_role_arn
   deployment_config_name = "CodeDeployDefault.ECSAllAtOnce"
 
   ecs_service {
@@ -493,7 +567,7 @@ resource "aws_codedeploy_deployment_group" "deploymentgroup" {
     }
     terminate_blue_instances_on_deployment_success {
       action                           = "TERMINATE"
-      termination_wait_time_in_minutes = var.codedeploy_termination_wait_time
+      termination_wait_time_in_minutes = var.codedeploy_config.codedeploy_termination_wait_time
     }
   }
 
@@ -512,7 +586,7 @@ resource "aws_codedeploy_deployment_group" "deploymentgroup" {
         listener_arns = [aws_alb_listener.https.arn]
       }
       test_traffic_route {
-        listener_arns = var.codedeploy_test_listener_port != null ? [aws_alb_listener.test_listener[0].arn] : []
+        listener_arns = local.codedeploy_test_listener_port != null ? [aws_alb_listener.test_listener[0].arn] : []
       }
       target_group {
         name = aws_alb_target_group.blue.name
@@ -526,6 +600,7 @@ resource "aws_codedeploy_deployment_group" "deploymentgroup" {
 
 # ==================== AppSpec file ====================
 resource "local_file" "appspec_json" {
+  count      = var.codedeploy_config != null ? 1 : 0
   filename = var.appspec_filename != null ? var.appspec_filename : "${path.cwd}/appspec.json"
   content = jsonencode({
     version = 1

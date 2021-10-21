@@ -1,5 +1,5 @@
 module "my_app" {
-  source = "../"
+  source = "bitbucket.org/liveviewtech/terraform-aws-fargate.git?ref=v0.1.0"
   app_name       = "example-api"
   container_port = 8000
   primary_container_definition = {
@@ -12,12 +12,14 @@ module "my_app" {
   }
 
   autoscaling_config            = null
+  codedeploy_config             = null
 
   hosted_zone                   = module.acs.route53_zone
   https_certificate_arn         = module.acs.certificate.arn
   public_subnet_ids             = module.acs.public_subnet_ids
   private_subnet_ids            = module.acs.private_subnet_ids
   vpc_id                        = module.acs.vpc.id
+  role_permissions_boundary_arn = module.acs.role_permissions_boundary_arn
 
   tags = {
     env              = "dev"
