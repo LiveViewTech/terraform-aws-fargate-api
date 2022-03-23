@@ -1,3 +1,8 @@
+variable "name_prefix" {
+  type    = string
+  default = null
+}
+
 variable "app_name" {
   type        = string
   description = "Application name to name your Fargate API and other resources. Must be <= 24 characters."
@@ -21,7 +26,7 @@ variable "primary_container_definition" {
       container_path = string
     }))
   })
-  description = "The primary container definition for your application. This one will be the only container that receives traffic from the ALB, so make sure the 'ports' field contains the same port as the 'image_port'"
+  description = "The primary container definition for your application. This one will be the only container that receives traffic from the LB, so make sure the 'ports' field contains the same port as the 'image_port'"
 }
 variable "extra_container_definitions" {
   type = list(object({
@@ -105,12 +110,12 @@ variable "vpc_id" {
 }
 variable "public_subnet_ids" {
   type        = list(string)
-  description = "List of subnet IDs for the ALB."
+  description = "List of subnet IDs for the LB."
 }
-variable "alb_internal_flag" {
+variable "lb_internal_flag" {
   type        = bool
   default     = false
-  description = "Is the ALB Internal"
+  description = "Is the LB internal?"
 }
 
 variable "private_subnet_ids" {
@@ -126,14 +131,19 @@ variable "role_permissions_boundary_arn" {
   type        = string
   description = "ARN of the IAM Role permissions boundary to place on each IAM role created."
 }
+variable "target_group_protocol" {
+  type        = string
+  description = "Protocol the target group should use when communicating to targets. Defaults to HTTP."
+  default     = "HTTP"
+}
 variable "target_group_deregistration_delay" {
   type        = number
-  description = "Deregistration delay in seconds for ALB target groups. Defaults to 60 seconds."
+  description = "Deregistration delay in seconds for LB target groups. Defaults to 60 seconds."
   default     = 60
 }
 variable "target_group_sticky_sessions" {
   type        = string
-  description = "Sticky sessions on the ALB target groups. Defaults to false."
+  description = "Sticky sessions on the LB target groups. Defaults to false."
   default     = false
 }
 variable "site_url" {
@@ -146,7 +156,7 @@ variable "hosted_zone" {
     name = string,
     id   = string
   })
-  description = "Hosted Zone object to redirect to ALB. (Can pass in the aws_hosted_zone object). A and AAAA records created in this hosted zone."
+  description = "Hosted Zone object to redirect to LB. (Can pass in the aws_hosted_zone object). A and AAAA records created in this hosted zone."
 }
 variable "https_certificate_arn" {
   type        = string
@@ -158,10 +168,11 @@ variable "autoscaling_config" {
     max_capacity = number
   })
   description = "Configuration for default autoscaling policies and alarms. Set to null if you want to set up your own autoscaling policies and alarms."
+  default     = null
 }
 variable "codedeploy_config" {
   type = object({
-    codedeploy_service_role_arn = string
+    codedeploy_service_role_arn      = string
     codedeploy_termination_wait_time = number
     codedeploy_lifecycle_hooks = object({
       BeforeInstall         = string
@@ -192,7 +203,7 @@ variable "lb_logging_enabled" {
 }
 variable "lb_logging_bucket_name" {
   type        = string
-  description = "Bucket for ALB access logs."
+  description = "Bucket for LB access logs."
   default     = ""
 }
 variable "fargate_platform_version" {
