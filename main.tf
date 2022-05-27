@@ -8,19 +8,10 @@ terraform {
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
-module "primary_container_definition" {
-  source = "./modules/container-definition"
-
-  var.primary_container_definition
-}
-
 locals {
-  app_name    = var.name_prefix != null ? "${var.name_prefix}-${var.app_name}" : var.app_name
+  name        = var.name_prefix != null ? "${var.name_prefix}-${var.name}" : var.name
   definitions = concat([var.primary_container_definition], var.extra_container_definitions)
-  volumes = distinct(flatten([
-    for def in local.definitions :
-    def.efs_volume_mounts != null ? def.efs_volume_mounts : []
-  ]))
+
   ssm_parameters = distinct(flatten([
     for def in local.definitions :
     values(def.secrets != null ? def.secrets : {})
@@ -32,10 +23,10 @@ locals {
     "${local.ssm_parameter_arn_base}${replace(param, "/^//", "")}"
   ]
 
-  lb_name                   = local.app_name
-  app_domain_url            = var.site_url != null ? var.site_url : "${local.app_name}.${var.hosted_zone.name}"
-  cloudwatch_log_group_name = var.name_prefix != null ? "/${var.name_prefix}/${var.app_name}" : "/${var.app_name}"
-  service_name              = var.app_name
+  lb_name                   = local.name
+  app_domain_url            = var.site_url != null ? var.site_url : "${local.name}.${var.hosted_zone.name}"
+  cloudwatch_log_group_name = var.name_prefix != null ? "/${var.name_prefix}/${var.name}" : "/${var.name}"
+  service_name              = var.name
 
   container_definitions = [
     for def in local.definitions : {
@@ -73,20 +64,12 @@ locals {
           valueFrom = "${local.ssm_parameter_arn_base}${replace(lookup(def.secrets, key), "/^//", "")}"
         }
       ]
-      mountPoints = [
-        for mount in(def.efs_volume_mounts != null ? def.efs_volume_mounts : []) :
-        {
-          containerPath = mount.container_path
-          sourceVolume  = mount.name
-          readOnly      = false
-        }
-      ]
-      volumesFrom = []
     }
   ]
-  hooks = var.codedeploy_config != null ? setsubtract([
-    for hook in keys(var.codedeploy_config.codedeploy_lifecycle_hooks) :
-    zipmap([hook], [lookup(var.codedeploy_config.codedeploy_lifecycle_hooks, hook, null)])
+
+  hooks = var.codedeploy_config != null && var.codedeploy_lifecycle_hooks != null ? setsubtract([
+    for hook in keys(var.codedeploy_lifecycle_hooks) :
+    zipmap([hook], [lookup(var.codedeploy_lifecycle_hooks, hook, null)])
     ], [
     {
       BeforeInstall = null
@@ -104,7 +87,6 @@ locals {
       AfterAllowTraffic = null
     }
   ]) : null
-
   codedeploy_test_listener_port = var.codedeploy_config.codedeploy_test_listener_port
 }
 
@@ -112,13 +94,9 @@ resource "aws_lb" "this" {
   name            = local.lb_name
   subnets         = var.public_subnet_ids
   security_groups = [aws_security_group.lb.id]
-  tags            = var.tags
-  internal        = var.lb_internal_flag
+  internal        = var.internal
 
-  access_logs {
-    bucket  = var.lb_logging_bucket_name
-    enabled = var.lb_logging_enabled
-  }
+  tags = var.tags
 }
 
 resource "aws_security_group" "lb" {
@@ -153,11 +131,12 @@ resource "aws_security_group" "lb" {
   }
 
   tags = merge(var.tags, {
-    Name = "${local.app_name}-lb"
+    Name = "${local.name}-lb"
   })
 }
+
 resource "aws_lb_target_group" "blue" {
-  name     = "${local.app_name}-blue"
+  name     = "${local.name}-blue"
   port     = var.container_port
   protocol = var.target_group_protocol
   vpc_id   = var.vpc_id
@@ -167,7 +146,7 @@ resource "aws_lb_target_group" "blue" {
   deregistration_delay          = var.target_group_deregistration_delay
   stickiness {
     type    = "lb_cookie"
-    enabled = var.target_group_sticky_sessions
+    enabled = var.sticky_sessions
   }
   health_check {
     path                = var.health_check_path
@@ -178,12 +157,14 @@ resource "aws_lb_target_group" "blue" {
     healthy_threshold   = var.health_check_healthy_threshold
     unhealthy_threshold = var.health_check_unhealthy_threshold
   }
+
   tags = var.tags
 
   depends_on = [aws_lb.this]
 }
+
 resource "aws_lb_target_group" "green" {
-  name     = "${local.app_name}-green"
+  name     = "${local.name}-green"
   port     = var.container_port
   protocol = var.target_group_protocol
   vpc_id   = var.vpc_id
@@ -193,7 +174,7 @@ resource "aws_lb_target_group" "green" {
   deregistration_delay          = var.target_group_deregistration_delay
   stickiness {
     type    = "lb_cookie"
-    enabled = var.target_group_sticky_sessions
+    enabled = var.sticky_sessions
   }
   health_check {
     path                = var.health_check_path
@@ -207,8 +188,9 @@ resource "aws_lb_target_group" "green" {
 
   depends_on = [aws_lb.this]
 }
+
 resource "aws_lb_target_group" "this" {
-  name     = local.app_name
+  name     = local.name
   port     = var.container_port
   protocol = var.target_group_protocol
   vpc_id   = var.vpc_id
@@ -218,7 +200,7 @@ resource "aws_lb_target_group" "this" {
   deregistration_delay          = var.target_group_deregistration_delay
   stickiness {
     type    = "lb_cookie"
-    enabled = var.target_group_sticky_sessions
+    enabled = var.sticky_sessions
   }
   health_check {
     path                = var.health_check_path
@@ -232,6 +214,7 @@ resource "aws_lb_target_group" "this" {
 
   depends_on = [aws_lb.this]
 }
+
 resource "aws_lb_listener" "https" {
   load_balancer_arn = aws_lb.this.arn
   port              = 443
@@ -249,6 +232,7 @@ resource "aws_lb_listener" "https" {
     aws_lb_target_group.green
   ]
 }
+
 resource "aws_lb_listener" "http_redirect" {
   load_balancer_arn = aws_lb.this.arn
   port              = 80
@@ -262,6 +246,7 @@ resource "aws_lb_listener" "http_redirect" {
     }
   }
 }
+
 resource "aws_lb_listener" "test_listener" {
   load_balancer_arn = aws_lb.this.arn
   port              = local.codedeploy_test_listener_port
@@ -290,6 +275,7 @@ resource "aws_route53_record" "a_record" {
     zone_id                = aws_lb.this.zone_id
   }
 }
+
 resource "aws_route53_record" "aaaa_record" {
   name    = local.app_domain_url
   type    = "AAAA"
@@ -314,12 +300,14 @@ data "aws_iam_policy_document" "task_execution_policy" {
     }
   }
 }
+
 resource "aws_iam_role" "task_execution_role" {
-  name                 = "${local.app_name}_task-execution-role"
+  name                 = "${local.name}_task-execution-role"
   assume_role_policy   = data.aws_iam_policy_document.task_execution_policy.json
   permissions_boundary = var.role_permissions_boundary_arn
   tags                 = var.tags
 }
+
 resource "aws_iam_role_policy_attachment" "task_execution_policy_attach" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
   role       = aws_iam_role.task_execution_role.name
@@ -339,11 +327,13 @@ data "aws_iam_policy_document" "secrets_access" {
     resources = local.secrets_arns
   }
 }
+
 resource "aws_iam_policy" "secrets_access" {
   count  = local.has_secrets ? 1 : 0
-  name   = "${local.app_name}_secrets-access"
+  name   = "${local.name}_secrets-access"
   policy = data.aws_iam_policy_document.secrets_access[0].json
 }
+
 resource "aws_iam_role_policy_attachment" "secrets_policy_attach" {
   count      = local.has_secrets ? 1 : 0
   policy_arn = aws_iam_policy.secrets_access[0].arn
@@ -361,17 +351,20 @@ data "aws_iam_policy_document" "task_policy" {
     actions = ["sts:AssumeRole"]
   }
 }
+
 resource "aws_iam_role" "task_role" {
-  name                 = "${local.app_name}_task-role"
+  name                 = "${local.name}_task-role"
   assume_role_policy   = data.aws_iam_policy_document.task_policy.json
   permissions_boundary = var.role_permissions_boundary_arn
   tags                 = var.tags
 }
+
 resource "aws_iam_role_policy_attachment" "task_policy_attach" {
   count      = length(var.task_policies)
   policy_arn = element(var.task_policies, count.index)
   role       = aws_iam_role.task_role.name
 }
+
 resource "aws_iam_role_policy_attachment" "secret_task_policy_attach" {
   count      = local.has_secrets ? 1 : 0
   policy_arn = aws_iam_policy.secrets_access[0].arn
@@ -380,7 +373,7 @@ resource "aws_iam_role_policy_attachment" "secret_task_policy_attach" {
 
 resource "aws_ecs_task_definition" "this" {
   container_definitions    = jsonencode(local.container_definitions)
-  family                   = local.app_name
+  family                   = local.name
   cpu                      = var.task_cpu
   memory                   = var.task_memory
   network_mode             = "awsvpc"
@@ -388,20 +381,9 @@ resource "aws_ecs_task_definition" "this" {
   execution_role_arn       = aws_iam_role.task_execution_role.arn
   task_role_arn            = aws_iam_role.task_role.arn
   tags                     = var.tags
-
-  dynamic "volume" {
-    for_each = local.volumes
-    content {
-      name = volume.value.name
-      efs_volume_configuration {
-        file_system_id = volume.value.file_system_id
-        root_directory = volume.value.root_directory
-      }
-    }
-  }
 }
 
-resource "aws_security_group" "fargate_service" {
+resource "aws_security_group" "service" {
   name_prefix = "lvt-"
   vpc_id      = var.vpc_id
 
@@ -412,9 +394,9 @@ resource "aws_security_group" "fargate_service" {
     security_groups = [aws_security_group.lb.id]
   }
   ingress {
-    from_port       = 80
-    to_port         = 80
-    protocol        = "tcp"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
   egress {
@@ -429,7 +411,7 @@ resource "aws_security_group" "fargate_service" {
   }
 
   tags = merge(var.tags, {
-    Name = "${local.app_name}"
+    Name = "${local.name}"
   })
 }
 
@@ -440,12 +422,14 @@ resource "aws_ecs_service" "this" {
   desired_count    = var.autoscaling_config != null ? var.autoscaling_config.min_capacity : 1
   launch_type      = "FARGATE"
   platform_version = var.fargate_platform_version
+  
   deployment_controller {
     type = "CODE_DEPLOY"
   }
+  
   network_configuration {
     subnets          = var.private_subnet_ids
-    security_groups  = concat([aws_security_group.fargate_service.id], var.security_groups)
+    security_groups  = concat([aws_security_group.service.id], var.security_groups)
     assign_public_ip = true
   }
 
@@ -463,7 +447,7 @@ resource "aws_ecs_service" "this" {
     ignore_changes = [
       task_definition, // ignore because new revisions will get added after code deploy's blue-green deployment
       load_balancer,   // ignore because load balancer can change after code deploy's blue-green deployment
-      desired_count    // igrnore because we're assuming you have autoscaling to manage the container count
+      desired_count    // ignore because we're assuming you have autoscaling to manage the container count
     ]
   }
 }
@@ -482,9 +466,10 @@ resource "aws_appautoscaling_target" "default" {
   scalable_dimension = "ecs:service:DesiredCount"
   service_namespace  = "ecs"
 }
+
 resource "aws_appautoscaling_policy" "up" {
   count              = var.autoscaling_config != null ? 1 : 0
-  name               = "${local.app_name}_autoscale-up"
+  name               = "${local.name}_autoscale-up"
   resource_id        = aws_appautoscaling_target.default[0].resource_id
   scalable_dimension = aws_appautoscaling_target.default[0].scalable_dimension
   service_namespace  = aws_appautoscaling_target.default[0].service_namespace
@@ -503,7 +488,7 @@ resource "aws_appautoscaling_policy" "up" {
 
 resource "aws_cloudwatch_metric_alarm" "up" {
   count      = var.autoscaling_config != null ? 1 : 0
-  alarm_name = "${local.app_name}_alarm-up"
+  alarm_name = "${local.name}_alarm-up"
   namespace  = "AWS/ECS"
   dimensions = {
     ClusterName = var.ecs_cluster_name
@@ -521,7 +506,7 @@ resource "aws_cloudwatch_metric_alarm" "up" {
 
 resource "aws_appautoscaling_policy" "down" {
   count              = var.autoscaling_config != null ? 1 : 0
-  name               = "${local.app_name}_autoscale-down"
+  name               = "${local.name}_autoscale-down"
   resource_id        = aws_appautoscaling_target.default[0].resource_id
   scalable_dimension = aws_appautoscaling_target.default[0].scalable_dimension
   service_namespace  = aws_appautoscaling_target.default[0].service_namespace
@@ -540,7 +525,7 @@ resource "aws_appautoscaling_policy" "down" {
 
 resource "aws_cloudwatch_metric_alarm" "down" {
   count      = var.autoscaling_config != null ? 1 : 0
-  alarm_name = "${local.app_name}_alarm-down"
+  alarm_name = "${local.name}_alarm-down"
   namespace  = "AWS/ECS"
   dimensions = {
     ClusterName = var.ecs_cluster_name
@@ -557,13 +542,13 @@ resource "aws_cloudwatch_metric_alarm" "down" {
 }
 
 resource "aws_codedeploy_app" "this" {
-  name             = local.app_name
+  name             = local.name
   compute_platform = "ECS"
 }
 
 resource "aws_codedeploy_deployment_group" "this" {
   app_name               = aws_codedeploy_app.this.name
-  deployment_group_name  = local.app_name
+  deployment_group_name  = local.name
   service_role_arn       = var.codedeploy_config.codedeploy_service_role_arn
   deployment_config_name = "CodeDeployDefault.ECSAllAtOnce"
 
@@ -609,9 +594,8 @@ resource "aws_codedeploy_deployment_group" "this" {
   }
 }
 
-resource "local_file" "appspec_json" {
-  filename = var.appspec_filename != null ? var.appspec_filename : "${path.cwd}/appspec.json"
-  content = jsonencode({
+locals {
+  appspec = {
     version = 1
     Resources = [{
       TargetService = {
@@ -627,5 +611,27 @@ resource "local_file" "appspec_json" {
       }
     }],
     Hooks = local.hooks
-  })
+  }
+  deployment_config = {
+    applicationName     = aws_codedeploy_app.this.name
+    deploymentGroupName = aws_codedeploy_deployment_group.this.deployment_group_name
+    revision = {
+      revisionType = "AppSpecContent"
+      appSpecContent = {
+        content = jsonencode(local.appspec)
+      }
+    }
+  }
+}
+
+resource "local_file" "appspec_json" {
+  count    = var.appspec_filename == null ? 0 : 1
+  filename = var.appspec_filename
+  content  = jsonencode(local.appspec)
+}
+
+resource "local_file" "deployment_config" {
+  count    = var.deployment_config_filename == null ? 0 : 1
+  filename = var.deployment_config_filename
+  content  = jsonencode(local.deployment_config)
 }

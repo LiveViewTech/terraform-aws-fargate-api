@@ -1,9 +1,5 @@
-output "fargate_service" {
-  value = aws_ecs_service.this
-}
-
-output "fargate_service_security_group" {
-  value = aws_security_group.fargate_service
+output "service_security_group" {
+  value = aws_security_group.service
 }
 
 output "task_definition" {
@@ -14,12 +10,12 @@ output "codedeploy_deployment_group" {
   value = var.codedeploy_config != null ? aws_codedeploy_deployment_group.this : null
 }
 
-output "codedeploy_appspec_json" {
-  value = local_file.appspec_json.content
+output "appspec" {
+  value = local.appspec
 }
 
-output "codedeploy_appspec_json_file" {
-  value = local_file.appspec_json.filename
+output "deployment_config" {
+  value = local.deployment_config
 }
 
 output "lb" {
