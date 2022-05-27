@@ -1,12 +1,18 @@
 terraform {
-  required_version = ">= 1.0.0"
+  required_version = "~>1"
   required_providers {
-    aws = ">= 3.0.0"
+    aws = "~>3"
   }
 }
 
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
+
+module "primary_container_definition" {
+  source = "./modules/container-definition"
+
+  var.primary_container_definition
+}
 
 locals {
   app_name    = var.name_prefix != null ? "${var.name_prefix}-${var.app_name}" : var.app_name
@@ -102,7 +108,6 @@ locals {
   codedeploy_test_listener_port = var.codedeploy_config.codedeploy_test_listener_port
 }
 
-# ==================== LB ====================
 resource "aws_lb" "this" {
   name            = local.lb_name
   subnets         = var.public_subnet_ids
@@ -127,12 +132,14 @@ resource "aws_security_group" "lb" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
   ingress {
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
   // allow any outgoing traffic
   egress {
     protocol    = "-1"
@@ -273,7 +280,6 @@ resource "aws_lb_listener" "test_listener" {
   ]
 }
 
-# ==================== Route53 ====================
 resource "aws_route53_record" "a_record" {
   name    = local.app_domain_url
   type    = "A"
@@ -295,8 +301,6 @@ resource "aws_route53_record" "aaaa_record" {
   }
 }
 
-# ==================== Task Definition ====================
-# --- task execution role ---
 data "aws_iam_policy_document" "task_execution_policy" {
   version = "2012-10-17"
   statement {
@@ -320,7 +324,8 @@ resource "aws_iam_role_policy_attachment" "task_execution_policy_attach" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
   role       = aws_iam_role.task_execution_role.name
 }
-// Make sure the fargate task has access to get the parameters from the container secrets
+
+// make sure the fargate task has access to get the parameters from the container secrets
 data "aws_iam_policy_document" "secrets_access" {
   count   = local.has_secrets ? 1 : 0
   version = "2012-10-17"
@@ -344,7 +349,7 @@ resource "aws_iam_role_policy_attachment" "secrets_policy_attach" {
   policy_arn = aws_iam_policy.secrets_access[0].arn
   role       = aws_iam_role.task_execution_role.name
 }
-# --- task role ---
+
 data "aws_iam_policy_document" "task_policy" {
   version = "2012-10-17"
   statement {
@@ -372,7 +377,7 @@ resource "aws_iam_role_policy_attachment" "secret_task_policy_attach" {
   policy_arn = aws_iam_policy.secrets_access[0].arn
   role       = aws_iam_role.task_role.name
 }
-# --- task definition ---
+
 resource "aws_ecs_task_definition" "this" {
   container_definitions    = jsonencode(local.container_definitions)
   family                   = local.app_name
@@ -396,10 +401,6 @@ resource "aws_ecs_task_definition" "this" {
   }
 }
 
-# ==================== Fargate ====================
-# data "aws_ecs_cluster" "this" {
-#   cluster_name = var.ecs_cluster_name
-# }
 resource "aws_security_group" "fargate_service" {
   name_prefix = "lvt-"
   vpc_id      = var.vpc_id
@@ -431,6 +432,7 @@ resource "aws_security_group" "fargate_service" {
     Name = "${local.app_name}"
   })
 }
+
 resource "aws_ecs_service" "this" {
   name             = local.service_name
   task_definition  = aws_ecs_task_definition.this.arn
@@ -466,14 +468,12 @@ resource "aws_ecs_service" "this" {
   }
 }
 
-# ==================== CloudWatch ====================
 resource "aws_cloudwatch_log_group" "this" {
   name              = local.cloudwatch_log_group_name
   retention_in_days = var.log_retention_in_days
   tags              = var.tags
 }
 
-# ==================== AutoScaling ====================
 resource "aws_appautoscaling_target" "default" {
   count              = var.autoscaling_config != null ? 1 : 0
   min_capacity       = var.autoscaling_config.min_capacity
@@ -500,6 +500,7 @@ resource "aws_appautoscaling_policy" "up" {
     }
   }
 }
+
 resource "aws_cloudwatch_metric_alarm" "up" {
   count      = var.autoscaling_config != null ? 1 : 0
   alarm_name = "${local.app_name}_alarm-up"
@@ -517,6 +518,7 @@ resource "aws_cloudwatch_metric_alarm" "up" {
   alarm_actions       = [aws_appautoscaling_policy.up[0].arn]
   tags                = var.tags
 }
+
 resource "aws_appautoscaling_policy" "down" {
   count              = var.autoscaling_config != null ? 1 : 0
   name               = "${local.app_name}_autoscale-down"
@@ -535,6 +537,7 @@ resource "aws_appautoscaling_policy" "down" {
     }
   }
 }
+
 resource "aws_cloudwatch_metric_alarm" "down" {
   count      = var.autoscaling_config != null ? 1 : 0
   alarm_name = "${local.app_name}_alarm-down"
@@ -553,7 +556,6 @@ resource "aws_cloudwatch_metric_alarm" "down" {
   tags                = var.tags
 }
 
-# ==================== CodeDeploy ====================
 resource "aws_codedeploy_app" "this" {
   name             = local.app_name
   compute_platform = "ECS"
@@ -607,7 +609,6 @@ resource "aws_codedeploy_deployment_group" "this" {
   }
 }
 
-# ==================== AppSpec file ====================
 resource "local_file" "appspec_json" {
   filename = var.appspec_filename != null ? var.appspec_filename : "${path.cwd}/appspec.json"
   content = jsonencode({
