@@ -24,7 +24,7 @@ locals {
   ]
 
   lb_name                   = local.name
-  app_domain_url            = var.site_url != null ? var.site_url : "${local.name}.${var.hosted_zone.name}"
+  app_domain_url            = var.site_domain != null ? var.site_domain : "${local.name}.${var.hosted_zone.name}"
   cloudwatch_log_group_name = var.name_prefix != null ? "/${var.name_prefix}/${var.name}" : "/${var.name}"
   service_name              = var.name
 

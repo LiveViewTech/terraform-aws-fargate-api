@@ -167,9 +167,9 @@ variable "sticky_sessions" {
   default     = false
 }
 
-variable "site_url" {
+variable "site_domain" {
   type        = string
-  description = "The URL for the site."
+  description = "The domain for the api. Set to a blank string to point to the use the zones domain apex"
   default     = null
 }
 
