@@ -119,6 +119,11 @@ variable "vpc_id" {
   description = "VPC ID to deploy ECS service."
 }
 
+variable "assign_public_ip" {
+  type    = bool
+  default = false
+}
+
 variable "public_subnet_ids" {
   type        = list(string)
   description = "List of subnet IDs for the LB."
