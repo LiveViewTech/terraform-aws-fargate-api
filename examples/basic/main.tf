@@ -24,7 +24,7 @@ resource "aws_ecs_cluster" "example" {
 
 module "example" {
   # source = "bitbucket.org/liveviewtech/terraform-aws-fargate-api.git?ref=v0.2.0"
-  source = "../../"
+  source = "../../" # for local testing
 
   name = "hello-world"
 

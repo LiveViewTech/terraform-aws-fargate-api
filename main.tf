@@ -103,19 +103,15 @@ resource "aws_security_group" "lb" {
   name_prefix = "lvt-"
   vpc_id      = var.vpc_id
 
-  // allow access to the LB from anywhere for 80 and 443
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+  dynamic "ingress" {
+    // allow access to the LB from anywhere for 80 and 443
+    for_each = toset(var.whitelisted_cidr_blocks != null ? [80, 443] : [])
+    content {
+      from_port   = ingress.value
+      to_port     = ingress.value
+      protocol    = "tcp"
+      cidr_blocks = var.whitelisted_cidr_blocks
+    }
   }
 
   // allow any outgoing traffic
@@ -392,12 +388,6 @@ resource "aws_security_group" "service" {
     to_port         = 65535
     protocol        = "tcp"
     security_groups = [aws_security_group.lb.id]
-  }
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
   }
   egress {
     from_port   = 0

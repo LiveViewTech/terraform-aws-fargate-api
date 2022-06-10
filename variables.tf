@@ -160,6 +160,11 @@ variable "target_group_protocol" {
   default     = "HTTP"
 }
 
+variable "whitelisted_cidr_blocks" {
+  type = list(string)
+  default = ["0.0.0.0/0"]
+}
+
 variable "target_group_deregistration_delay" {
   type        = number
   description = "Deregistration delay in seconds for LB target groups. Defaults to 60 seconds."
