@@ -15,13 +15,7 @@ variable "ecs_cluster_name" {
 }
 
 variable "primary_container_definition" {
-  type = object({
-    name                  = string
-    image                 = string
-    ports                 = list(number)
-    environment_variables = map(string)
-    secrets               = map(string)
-  })
+  type        = any
   description = "The primary container definition for your application. This one will be the only container that receives traffic from the LB, so make sure the 'ports' field contains the same port as the 'image_port'"
 }
 

@@ -28,10 +28,9 @@ locals {
   cloudwatch_log_group_name = var.name_prefix != null ? "/${var.name_prefix}/${var.name}" : "/${var.name}"
   service_name              = var.name
 
+  excluded_container_params = ["ports", "environment_variables", "secrets"]
   container_definitions = [
-    for def in local.definitions : {
-      name       = def.name
-      image      = def.image
+    for def in local.definitions : merge({
       essential  = true
       privileged = false
       portMappings = [
@@ -64,7 +63,8 @@ locals {
           valueFrom = "${local.ssm_parameter_arn_base}${replace(lookup(def.secrets, key), "/^//", "")}"
         }
       ]
-    }
+      # exclude values that we manage for the user (secrets, env vars, etc)
+    }, {for k, v in def : k => v if !contains(local.excluded_container_params, k)})
   ]
 
   hooks = var.codedeploy_config != null && var.codedeploy_lifecycle_hooks != null ? setsubtract([
