@@ -1,7 +1,7 @@
 terraform {
   required_version = "~>1"
   required_providers {
-    aws = "~>3"
+    aws = "~>4"
   }
 }
 
@@ -64,7 +64,7 @@ locals {
         }
       ]
       # exclude values that we manage for the user (secrets, env vars, etc)
-    }, {for k, v in def : k => v if !contains(local.excluded_container_params, k)})
+    }, { for k, v in def : k => v if !contains(local.excluded_container_params, k) })
   ]
 
   hooks = var.codedeploy_config != null && var.codedeploy_lifecycle_hooks != null ? setsubtract([
