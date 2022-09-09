@@ -435,9 +435,10 @@ resource "aws_ecs_service" "this" {
 
   lifecycle {
     ignore_changes = [
-      task_definition, // ignore because new revisions will get added after code deploy's blue-green deployment
-      load_balancer,   // ignore because load balancer can change after code deploy's blue-green deployment
-      desired_count    // ignore because we're assuming you have autoscaling to manage the container count
+      task_definition,       // ignore because new revisions will get added after code deploy's blue-green deployment
+      load_balancer,         // ignore because load balancer can change after code deploy's blue-green deployment
+      network_configuration, // ignore because network configuration is changed by codedeploy
+      desired_count,         // ignore because we're assuming you have autoscaling to manage the container count
     ]
   }
 }
@@ -597,6 +598,13 @@ locals {
             ContainerPort = var.container_port
           }
           PlatformVersion = var.fargate_platform_version
+          NetworkConfiguration = {
+            AwsvpcConfiguration = {
+              Subnets        = aws_ecs_service.this.network_configuration[0].subnets
+              SecurityGroups = aws_ecs_service.this.network_configuration[0].security_groups
+              AssignPublicIp = aws_ecs_service.this.network_configuration[0].assign_public_ip ? "ENABLED" : "DISABLED"
+            }
+          }
         }
       }
     }],
