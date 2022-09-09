@@ -600,9 +600,9 @@ locals {
           PlatformVersion = var.fargate_platform_version
           NetworkConfiguration = {
             AwsvpcConfiguration = {
-              Subnets        = aws_ecs_service.this.network_configuration[0].subnets
-              SecurityGroups = aws_ecs_service.this.network_configuration[0].security_groups
-              AssignPublicIp = aws_ecs_service.this.network_configuration[0].assign_public_ip ? "ENABLED" : "DISABLED"
+              Subnets        = var.private_subnet_ids
+              SecurityGroups = concat([aws_security_group.service.id], var.security_groups)
+              AssignPublicIp = var.assign_public_ip ? "ENABLED" : "DISABLED"
             }
           }
         }
