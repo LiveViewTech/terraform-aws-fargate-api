@@ -238,8 +238,3 @@ variable "fargate_platform_version" {
   default     = "1.4.0"
 }
 
-variable "unique_target_group_name" {
-  type        = bool
-  description = "Use a unique, generated name for load-balancer target groups"
-  default     = false
-}

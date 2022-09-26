@@ -132,8 +132,7 @@ resource "aws_security_group" "lb" {
 }
 
 resource "aws_lb_target_group" "blue" {
-  name        = var.unique_target_group_name ? null : "${local.name}-blue"
-  name_prefix = var.unique_target_group_name ? "lvt-blue-" : null
+  name_prefix = "lvt-"
 
   port     = var.container_port
   protocol = var.target_group_protocol
@@ -156,18 +155,19 @@ resource "aws_lb_target_group" "blue" {
     unhealthy_threshold = var.health_check_unhealthy_threshold
   }
 
-  tags = var.tags
+  tags = merge(var.tags, {
+    Name = "${local.name}-blue"
+    Type = "blue"
+  })
 
   depends_on = [aws_lb.this]
 }
 
 resource "aws_lb_target_group" "green" {
-  name        = var.unique_target_group_name ? null : "${local.name}-green"
-  name_prefix = var.unique_target_group_name ? "lvt-green-" : null
-
-  port     = var.container_port
-  protocol = var.target_group_protocol
-  vpc_id   = var.vpc_id
+  name_prefix = "lvt-"
+  port        = var.container_port
+  protocol    = var.target_group_protocol
+  vpc_id      = var.vpc_id
 
   load_balancing_algorithm_type = "least_outstanding_requests"
   target_type                   = "ip"
@@ -184,14 +184,17 @@ resource "aws_lb_target_group" "green" {
     healthy_threshold   = var.health_check_healthy_threshold
     unhealthy_threshold = var.health_check_unhealthy_threshold
   }
-  tags = var.tags
+
+  tags = merge(var.tags, {
+    Name = "${local.name}-green"
+    Type = "green"
+  })
 
   depends_on = [aws_lb.this]
 }
 
 resource "aws_lb_target_group" "this" {
-  name        = var.unique_target_group_name ? null : local.name
-  name_prefix = var.unique_target_group_name ? "lvt-" : null
+  name_prefix = "lvt-"
 
   port     = var.container_port
   protocol = var.target_group_protocol
@@ -212,7 +215,11 @@ resource "aws_lb_target_group" "this" {
     healthy_threshold   = var.health_check_healthy_threshold
     unhealthy_threshold = var.health_check_unhealthy_threshold
   }
-  tags = var.tags
+
+  tags = merge(var.tags, {
+    Name = local.name
+    Type = "default"
+  })
 
   depends_on = [aws_lb.this]
 }
@@ -407,7 +414,7 @@ resource "aws_security_group" "service" {
   }
 
   tags = merge(var.tags, {
-    Name = "${local.name}"
+    Name = local.name
   })
 }
 
