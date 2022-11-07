@@ -9,31 +9,32 @@ customized solution you may need to use this code more as a pattern or guideline
 ## Usage
 ```hcl
 module "my_app" {
-  source = "bitbucket.org/liveviewtech/terraform-aws-fargate.git?ref=v0.1.0"
-  app_name       = "example-api"
+  source = "bitbucket.org/liveviewtech/terraform-aws-fargate.git?ref=v1"
+  
+  name           = "example-api"
   container_port = 8000
+  
   primary_container_definition = {
     name  = "example"
     image = "crccheck/hello-world"
     ports = [8000]
-    environment_variables = null
-    secrets = null
-    efs_volume_mounts = null
+    
+    environment_variables = {
+      LOG = "debug"
+    }
+    
+    secrets = {
+      SUPER_SECRET = aws_ssm_parameter.super_secret.name
+    }
   }
 
-  autoscaling_config            = null
   codedeploy_config = {
     codedeploy_test_listener_port    = 8443
     codedeploy_service_role_arn      = module.acs.powerbuilder_role.arn
-    codedeploy_termination_wait_time = 15
-    codedeploy_lifecycle_hooks = {
-      BeforeInstall         = null
-      AfterInstall          = null
-      AfterAllowTestTraffic = "testLifecycle"
-      BeforeAllowTraffic    = null
-      AfterAllowTraffic     = null
-    }
+    codedeploy_termination_wait_time = 0
   }
+  
+  deployment_config_filename = "${path.module}/../deployment-config.json"
 
   hosted_zone                   = module.acs.route53_zone
   https_certificate_arn         = module.acs.certificate.arn
@@ -41,11 +42,6 @@ module "my_app" {
   private_subnet_ids            = module.acs.private_subnet_ids
   vpc_id                        = module.acs.vpc.id
   role_permissions_boundary_arn = module.acs.role_permissions_boundary.arn
-
-  tags = {
-    env              = "dev"
-    repo             = "https://bitbucket.org/liveviewtech/terraform-aws-fargate"
-  }
 }
 ```
 
@@ -73,7 +69,7 @@ module "my_app" {
 ## Inputs
 | Name                              | Type                                  | Description                                                                                                                                                                                                                             | Default    |
 |-----------------------------------|---------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|
-| app_name                          | string                                | Application name to name your Fargate API and other resources (Must be <= 24 alphanumeric characters)                                                                                                                                   |            |
+| name                              | string                                | Application name to name your Fargate API and other resources (Must be <= 24 alphanumeric characters)                                                                                                                                   |            |
 | ecs_cluster_name                  | string                                | Existing ECS Cluster name to host the fargate server. Defaults to creating its own cluster.                                                                                                                                             | <app_name> |
 | primary_container_definition      | [object](#container_definition)       | The primary container definition for your application. This one will be the only container that receives traffic from the ALB, so make sure the `ports` field contains the same port as the `image_port`                                |            |
 | extra_container_definitions       | list([object](#container_definition)) | A list of extra container definitions (side car containers)                                                                                                                                                                             | []         |
@@ -96,7 +92,7 @@ module "my_app" {
 | role_permissions_boundary_arn     | string                                | ARN of the IAM Role permissions boundary to place on each IAM role created                                                                                                                                                              |            |
 | target_group_deregistration_delay | number                                | Deregistration delay in seconds for ALB target groups                                                                                                                                                                                   | 60         |
 | target_group_sticky_sessions      | boolean                               | Enables sticky sessions on the ALB target groups                                                                                                                                                                                        | false      |
-| site_url                          | string                                | The URL for the site. Concatenates app_name with hosted_zone_name.                                                                                                                                                                      |            |
+| site_domain                       | string                                | The URL for the site. Concatenates app_name with hosted_zone_name.                                                                                                                                                                      |            |
 | hosted_zone                       | [object](#hosted_zone)                | Hosted Zone object to redirect to ALB. (Can pass in the aws_hosted_zone object). A and AAAA records created in this hosted zone                                                                                                         |            |
 | https_certificate_arn             | string                                | ARN of the HTTPS certificate of the hosted zone/domain                                                                                                                                                                                  |            |
 | autoscaling_config                | [object](#autoscaling_config)         | Configuration for default autoscaling policies and alarms. Set to `null` if you want to set up your own autoscaling policies and alarms.                                                                                                |            |
