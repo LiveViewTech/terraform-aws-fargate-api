@@ -144,6 +144,7 @@ resource "aws_security_group" "alb-sg" {
   }
   tags = var.tags
 }
+
 resource "aws_alb_target_group" "blue" {
   name     = "${var.app_name}-tgb"
   port     = var.container_port
@@ -169,6 +170,7 @@ resource "aws_alb_target_group" "blue" {
 
   depends_on = [aws_alb.alb]
 }
+
 resource "aws_alb_target_group" "green" {
   name     = "${var.app_name}-tgg"
   port     = var.container_port
@@ -194,6 +196,7 @@ resource "aws_alb_target_group" "green" {
 
   depends_on = [aws_alb.alb]
 }
+
 resource "aws_alb_target_group" "tg" {
   name     = "${var.app_name}-tg"
   port     = var.container_port
@@ -219,6 +222,7 @@ resource "aws_alb_target_group" "tg" {
 
   depends_on = [aws_alb.alb]
 }
+
 resource "aws_alb_listener" "https" {
   load_balancer_arn = aws_alb.alb.arn
   port              = 443
@@ -236,6 +240,7 @@ resource "aws_alb_listener" "https" {
     aws_alb_target_group.green
   ]
 }
+
 resource "aws_alb_listener" "http_to_https" {
   load_balancer_arn = aws_alb.alb.arn
   port              = 80
@@ -249,6 +254,7 @@ resource "aws_alb_listener" "http_to_https" {
     }
   }
 }
+
 resource "aws_alb_listener" "test_listener" {
   count             = var.codedeploy_config != null ? 1 : 0
   load_balancer_arn = aws_alb.alb.arn
@@ -279,6 +285,7 @@ resource "aws_route53_record" "a_record" {
     zone_id                = aws_alb.alb.zone_id
   }
 }
+
 resource "aws_route53_record" "aaaa_record" {
   name    = local.app_domain_url
   type    = "AAAA"
@@ -305,16 +312,19 @@ data "aws_iam_policy_document" "task_execution_policy" {
     }
   }
 }
+
 resource "aws_iam_role" "task_execution_role" {
   name                 = "${var.app_name}-taskExecutionRole"
   assume_role_policy   = data.aws_iam_policy_document.task_execution_policy.json
   permissions_boundary = var.role_permissions_boundary_arn
   tags                 = var.tags
 }
+
 resource "aws_iam_role_policy_attachment" "task_execution_policy_attach" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
   role       = aws_iam_role.task_execution_role.name
 }
+
 // Make sure the fargate task has access to get the parameters from the container secrets
 data "aws_iam_policy_document" "secrets_access" {
   count   = local.has_secrets ? 1 : 0
@@ -329,16 +339,19 @@ data "aws_iam_policy_document" "secrets_access" {
     resources = local.secrets_arns
   }
 }
+
 resource "aws_iam_policy" "secrets_access" {
   count  = local.has_secrets ? 1 : 0
   name   = "${var.app_name}_secrets_access"
   policy = data.aws_iam_policy_document.secrets_access[0].json
 }
+
 resource "aws_iam_role_policy_attachment" "secrets_policy_attach" {
   count      = local.has_secrets ? 1 : 0
   policy_arn = aws_iam_policy.secrets_access[0].arn
   role       = aws_iam_role.task_execution_role.name
 }
+
 # --- task role ---
 data "aws_iam_policy_document" "task_policy" {
   version = "2012-10-17"
@@ -351,22 +364,26 @@ data "aws_iam_policy_document" "task_policy" {
     actions = ["sts:AssumeRole"]
   }
 }
+
 resource "aws_iam_role" "task_role" {
   name                 = "${var.app_name}-taskRole"
   assume_role_policy   = data.aws_iam_policy_document.task_policy.json
   permissions_boundary = var.role_permissions_boundary_arn
   tags                 = var.tags
 }
+
 resource "aws_iam_role_policy_attachment" "task_policy_attach" {
   count      = length(var.task_policies)
   policy_arn = element(var.task_policies, count.index)
   role       = aws_iam_role.task_role.name
 }
+
 resource "aws_iam_role_policy_attachment" "secret_task_policy_attach" {
   count      = local.has_secrets ? 1 : 0
   policy_arn = aws_iam_policy.secrets_access[0].arn
   role       = aws_iam_role.task_role.name
 }
+
 # --- task definition ---
 resource "aws_ecs_task_definition" "task_def" {
   container_definitions    = jsonencode(local.container_definitions)
@@ -397,10 +414,12 @@ resource "aws_ecs_cluster" "new_cluster" {
   name  = local.cluster_name
   tags  = var.tags
 }
+
 data "aws_ecs_cluster" "existing_cluster" {
   count        = local.create_new_cluster ? 0 : 1
   cluster_name = var.ecs_cluster_name
 }
+
 resource "aws_security_group" "fargate_service_sg" {
   name        = "${var.app_name}-fargate-sg"
   description = "Controls access to the Fargate Service"
@@ -420,6 +439,7 @@ resource "aws_security_group" "fargate_service_sg" {
   }
   tags = var.tags
 }
+
 resource "aws_ecs_service" "service" {
   name             = local.service_name
   task_definition  = aws_ecs_task_definition.task_def.arn
@@ -453,6 +473,12 @@ resource "aws_ecs_service" "service" {
       desired_count    // igrnore because we're assuming you have autoscaling to manage the container count
     ]
   }
+
+  depends_on = [
+    aws_lb_listener.http_redirect,
+    aws_lb_listener.https,
+    aws_lb_listener.test_listener,
+  ]
 }
 
 # ==================== CloudWatch ====================
@@ -471,6 +497,7 @@ resource "aws_appautoscaling_target" "default" {
   scalable_dimension = "ecs:service:DesiredCount"
   service_namespace  = "ecs"
 }
+
 resource "aws_appautoscaling_policy" "up" {
   count              = var.autoscaling_config != null ? 1 : 0
   name               = "${var.app_name}-autoscale-up"
@@ -489,6 +516,7 @@ resource "aws_appautoscaling_policy" "up" {
     }
   }
 }
+
 resource "aws_cloudwatch_metric_alarm" "up" {
   count      = var.autoscaling_config != null ? 1 : 0
   alarm_name = "${var.app_name}-alarm-up"
@@ -506,6 +534,7 @@ resource "aws_cloudwatch_metric_alarm" "up" {
   alarm_actions       = [aws_appautoscaling_policy.up[0].arn]
   tags                = var.tags
 }
+
 resource "aws_appautoscaling_policy" "down" {
   count              = var.autoscaling_config != null ? 1 : 0
   name               = "${var.app_name}-autoscale-down"
@@ -524,6 +553,7 @@ resource "aws_appautoscaling_policy" "down" {
     }
   }
 }
+
 resource "aws_cloudwatch_metric_alarm" "down" {
   count      = var.autoscaling_config != null ? 1 : 0
   alarm_name = "${var.app_name}-alarm-down"
@@ -544,13 +574,13 @@ resource "aws_cloudwatch_metric_alarm" "down" {
 
 # ==================== CodeDeploy ====================
 resource "aws_codedeploy_app" "app" {
-  count      = var.codedeploy_config != null ? 1 : 0
+  count            = var.codedeploy_config != null ? 1 : 0
   name             = "${var.app_name}-codedeploy"
   compute_platform = "ECS"
 }
 
 resource "aws_codedeploy_deployment_group" "deploymentgroup" {
-  count      = var.codedeploy_config != null ? 1 : 0
+  count                  = var.codedeploy_config != null ? 1 : 0
   app_name               = aws_codedeploy_app.app[0].name
   deployment_group_name  = "${var.app_name}-deployment-group"
   service_role_arn       = var.codedeploy_config.codedeploy_service_role_arn
@@ -600,7 +630,7 @@ resource "aws_codedeploy_deployment_group" "deploymentgroup" {
 
 # ==================== AppSpec file ====================
 resource "local_file" "appspec_json" {
-  count      = var.codedeploy_config != null ? 1 : 0
+  count    = var.codedeploy_config != null ? 1 : 0
   filename = var.appspec_filename != null ? var.appspec_filename : "${path.cwd}/appspec.json"
   content = jsonencode({
     version = 1
