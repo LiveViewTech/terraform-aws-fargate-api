@@ -1,37 +1,37 @@
-output "fargate_service" {
-  value = aws_ecs_service.service
-}
-
-output "ecs_cluster" {
-  value = local.create_new_cluster ? aws_ecs_cluster.new_cluster[0] : data.aws_ecs_cluster.existing_cluster[0]
-}
-
-output "fargate_service_security_group" {
-  value = aws_security_group.fargate_service_sg
+output "service_security_group" {
+  value = aws_security_group.service
 }
 
 output "task_definition" {
-  value = aws_ecs_task_definition.task_def
+  value = aws_ecs_task_definition.this
 }
 
 output "codedeploy_deployment_group" {
-  value = var.codedeploy_config != null ? aws_codedeploy_deployment_group.deploymentgroup : null
+  value = var.codedeploy_config != null ? aws_codedeploy_deployment_group.this : null
 }
 
-output "codedeploy_appspec_json_file" {
-  value = var.codedeploy_config != null ? local_file.appspec_json[0].filename : null
+output "appspec" {
+  value = local.appspec
 }
 
-output "alb" {
-  value = aws_alb.alb
+output "deployment_config" {
+  value = local.deployment_config
 }
 
-output "alb_target_group" {
-  value = aws_alb_target_group.tg
+output "lb" {
+  value = aws_lb.this
 }
 
-output "alb_security_group" {
-  value = aws_security_group.alb-sg
+output "lb_target_group" {
+  value = aws_lb_target_group.this
+}
+
+output "lb_security_group" {
+  value = aws_security_group.lb
+}
+
+output "lb_https_listener" {
+  value = aws_lb_listener.https.arn
 }
 
 output "dns_record" {
@@ -39,7 +39,7 @@ output "dns_record" {
 }
 
 output "cloudwatch_log_group" {
-  value = aws_cloudwatch_log_group.container_log_group
+  value = aws_cloudwatch_log_group.this
 }
 
 output "autoscaling_step_up_policy" {
