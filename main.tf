@@ -309,7 +309,7 @@ resource "aws_iam_role_policy_attachment" "task_execution_policy_attach" {
   role       = aws_iam_role.task_execution_role.name
 }
 
-// make sure the fargate task has access to get the parameters from the container secrets
+// Make sure the fargate task has access to get the parameters from the container secrets
 data "aws_iam_policy_document" "secrets_access" {
   count   = local.has_secrets ? 1 : 0
   version = "2012-10-17"
@@ -440,6 +440,12 @@ resource "aws_ecs_service" "this" {
       desired_count    // ignore because we're assuming you have autoscaling to manage the container count
     ]
   }
+
+  depends_on = [
+    aws_lb_listener.http_redirect,
+    aws_lb_listener.https,
+    aws_lb_listener.test_listener,
+  ]
 }
 
 resource "aws_cloudwatch_log_group" "this" {
