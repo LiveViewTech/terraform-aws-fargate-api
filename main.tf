@@ -244,6 +244,11 @@ resource "aws_lb_listener" "https" {
   }
   lifecycle {
     ignore_changes = [default_action[0].target_group_arn]
+    replace_triggered_by = [
+      aws_lb_target_group.this,
+      aws_lb_target_group.blue,
+      aws_lb_target_group.green,
+    ]
   }
   depends_on = [
     aws_lb_target_group.this,
@@ -277,6 +282,11 @@ resource "aws_lb_listener" "test_listener" {
   }
   lifecycle {
     ignore_changes = [default_action[0].target_group_arn]
+    replace_triggered_by = [
+      aws_lb_target_group.this,
+      aws_lb_target_group.blue,
+      aws_lb_target_group.green,
+    ]
   }
   depends_on = [
     aws_lb_target_group.this,
