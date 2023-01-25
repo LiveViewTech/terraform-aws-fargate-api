@@ -229,6 +229,9 @@ resource "aws_lb_listener" "https" {
   port              = 443
   protocol          = "HTTPS"
   certificate_arn   = var.https_certificate_arn
+
+  ssl_policy = "ELBSecurityPolicy-FS-1-2-2019-08"
+
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.blue.arn
@@ -322,7 +325,7 @@ resource "aws_iam_role_policy_attachment" "task_execution_policy_attach" {
   role       = aws_iam_role.task_execution_role.name
 }
 
-// make sure the fargate task has access to get the parameters from the container secrets
+// Make sure the fargate task has access to get the parameters from the container secrets
 data "aws_iam_policy_document" "secrets_access" {
   count   = local.has_secrets ? 1 : 0
   version = "2012-10-17"
@@ -402,6 +405,7 @@ resource "aws_security_group" "service" {
     protocol        = "tcp"
     security_groups = [aws_security_group.lb.id]
   }
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -454,6 +458,12 @@ resource "aws_ecs_service" "this" {
       desired_count,         // ignore because we're assuming you have autoscaling to manage the container count
     ]
   }
+
+  depends_on = [
+    aws_lb_listener.http_redirect,
+    aws_lb_listener.https,
+    aws_lb_listener.test_listener,
+  ]
 }
 
 resource "aws_cloudwatch_log_group" "this" {
