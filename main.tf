@@ -1,7 +1,7 @@
 terraform {
   required_version = "~>1"
   required_providers {
-    aws = "~>3"
+    aws = ">= 3"
   }
 }
 
@@ -132,7 +132,8 @@ resource "aws_security_group" "lb" {
 }
 
 resource "aws_lb_target_group" "blue" {
-  name     = "${local.name}-blue"
+  name = "${local.name}-blue"
+
   port     = var.container_port
   protocol = var.target_group_protocol
   vpc_id   = var.vpc_id
@@ -154,13 +155,17 @@ resource "aws_lb_target_group" "blue" {
     unhealthy_threshold = var.health_check_unhealthy_threshold
   }
 
-  tags = var.tags
+  tags = merge(var.tags, {
+    Name = "${local.name}-blue"
+    Type = "blue"
+  })
 
   depends_on = [aws_lb.this]
 }
 
 resource "aws_lb_target_group" "green" {
-  name     = "${local.name}-green"
+  name = "${local.name}-green"
+
   port     = var.container_port
   protocol = var.target_group_protocol
   vpc_id   = var.vpc_id
@@ -180,13 +185,18 @@ resource "aws_lb_target_group" "green" {
     healthy_threshold   = var.health_check_healthy_threshold
     unhealthy_threshold = var.health_check_unhealthy_threshold
   }
-  tags = var.tags
+
+  tags = merge(var.tags, {
+    Name = "${local.name}-green"
+    Type = "green"
+  })
 
   depends_on = [aws_lb.this]
 }
 
 resource "aws_lb_target_group" "this" {
-  name     = local.name
+  name = local.name
+
   port     = var.container_port
   protocol = var.target_group_protocol
   vpc_id   = var.vpc_id
@@ -206,7 +216,11 @@ resource "aws_lb_target_group" "this" {
     healthy_threshold   = var.health_check_healthy_threshold
     unhealthy_threshold = var.health_check_unhealthy_threshold
   }
-  tags = var.tags
+
+  tags = merge(var.tags, {
+    Name = local.name
+    Type = "default"
+  })
 
   depends_on = [aws_lb.this]
 }
@@ -405,7 +419,7 @@ resource "aws_security_group" "service" {
   }
 
   tags = merge(var.tags, {
-    Name = "${local.name}"
+    Name = local.name
   })
 }
 
@@ -439,9 +453,10 @@ resource "aws_ecs_service" "this" {
 
   lifecycle {
     ignore_changes = [
-      task_definition, // ignore because new revisions will get added after code deploy's blue-green deployment
-      load_balancer,   // ignore because load balancer can change after code deploy's blue-green deployment
-      desired_count    // ignore because we're assuming you have autoscaling to manage the container count
+      task_definition,       // ignore because new revisions will get added after code deploy's blue-green deployment
+      load_balancer,         // ignore because load balancer can change after code deploy's blue-green deployment
+      network_configuration, // ignore because network configuration is changed by codedeploy
+      desired_count,         // ignore because we're assuming you have autoscaling to manage the container count
     ]
   }
 
@@ -607,6 +622,13 @@ locals {
             ContainerPort = var.container_port
           }
           PlatformVersion = var.fargate_platform_version
+          NetworkConfiguration = {
+            AwsvpcConfiguration = {
+              Subnets        = var.private_subnet_ids
+              SecurityGroups = concat([aws_security_group.service.id], var.security_groups)
+              AssignPublicIp = var.assign_public_ip ? "ENABLED" : "DISABLED"
+            }
+          }
         }
       }
     }],

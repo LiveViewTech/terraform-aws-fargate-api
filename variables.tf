@@ -155,7 +155,7 @@ variable "target_group_protocol" {
 }
 
 variable "whitelisted_cidr_blocks" {
-  type = list(string)
+  type    = list(string)
   default = ["0.0.0.0/0"]
 }
 
@@ -237,3 +237,4 @@ variable "fargate_platform_version" {
   description = "Version of the Fargate platform to run."
   default     = "1.4.0"
 }
+
