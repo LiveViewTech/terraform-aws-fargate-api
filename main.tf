@@ -131,8 +131,13 @@ resource "aws_security_group" "lb" {
   })
 }
 
+resource "random_id" "target_group" {
+  prefix      = "lvt-"
+  byte_length = 8
+}
+
 resource "aws_lb_target_group" "blue" {
-  name_prefix = "lvt-"
+  name = "${random_id.target_group.b64_url}-blue"
 
   port     = var.container_port
   protocol = var.target_group_protocol
@@ -164,7 +169,7 @@ resource "aws_lb_target_group" "blue" {
 }
 
 resource "aws_lb_target_group" "green" {
-  name_prefix = "lvt-"
+  name = "${random_id.target_group.b64_url}-green"
 
   port     = var.container_port
   protocol = var.target_group_protocol
@@ -195,7 +200,7 @@ resource "aws_lb_target_group" "green" {
 }
 
 resource "aws_lb_target_group" "this" {
-  name_prefix = "lvt-"
+  name = random_id.target_group.b64_url
 
   port     = var.container_port
   protocol = var.target_group_protocol
