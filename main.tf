@@ -132,7 +132,7 @@ resource "aws_security_group" "lb" {
 }
 
 resource "aws_lb_target_group" "blue" {
-  name_prefix = "lvt-"
+  name = "${local.name}-blue"
 
   port     = var.container_port
   protocol = var.target_group_protocol
@@ -164,10 +164,11 @@ resource "aws_lb_target_group" "blue" {
 }
 
 resource "aws_lb_target_group" "green" {
-  name_prefix = "lvt-"
-  port        = var.container_port
-  protocol    = var.target_group_protocol
-  vpc_id      = var.vpc_id
+  name = "${local.name}-green"
+
+  port     = var.container_port
+  protocol = var.target_group_protocol
+  vpc_id   = var.vpc_id
 
   load_balancing_algorithm_type = "least_outstanding_requests"
   target_type                   = "ip"
@@ -194,7 +195,7 @@ resource "aws_lb_target_group" "green" {
 }
 
 resource "aws_lb_target_group" "this" {
-  name_prefix = "lvt-"
+  name = local.name
 
   port     = var.container_port
   protocol = var.target_group_protocol
