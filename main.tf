@@ -100,8 +100,8 @@ resource "aws_lb" "this" {
 }
 
 resource "aws_security_group" "lb" {
-  name_prefix = "lvt-"
-  vpc_id      = var.vpc_id
+  name   = "${local.name}-lb"
+  vpc_id = var.vpc_id
 
   dynamic "ingress" {
     // allow access to the LB from anywhere for 80 and 443
@@ -132,7 +132,7 @@ resource "aws_security_group" "lb" {
 }
 
 resource "aws_lb_target_group" "blue" {
-  name = "${local.name}-blue"
+  name_prefix = "lvt-"
 
   port     = var.container_port
   protocol = var.target_group_protocol
@@ -164,7 +164,7 @@ resource "aws_lb_target_group" "blue" {
 }
 
 resource "aws_lb_target_group" "green" {
-  name = "${local.name}-green"
+  name_prefix = "lvt-"
 
   port     = var.container_port
   protocol = var.target_group_protocol
@@ -195,7 +195,7 @@ resource "aws_lb_target_group" "green" {
 }
 
 resource "aws_lb_target_group" "this" {
-  name = local.name
+  name_prefix = "lvt-"
 
   port     = var.container_port
   protocol = var.target_group_protocol
@@ -397,8 +397,8 @@ resource "aws_ecs_task_definition" "this" {
 }
 
 resource "aws_security_group" "service" {
-  name_prefix = "lvt-"
-  vpc_id      = var.vpc_id
+  name   = local.name
+  vpc_id = var.vpc_id
 
   ingress {
     from_port       = 0
