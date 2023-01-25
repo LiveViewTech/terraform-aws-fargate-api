@@ -246,8 +246,9 @@ resource "aws_lb_listener" "https" {
     ignore_changes = [default_action[0].target_group_arn]
   }
   depends_on = [
+    aws_lb_target_group.this,
     aws_lb_target_group.blue,
-    aws_lb_target_group.green
+    aws_lb_target_group.green,
   ]
 }
 
@@ -278,8 +279,9 @@ resource "aws_lb_listener" "test_listener" {
     ignore_changes = [default_action[0].target_group_arn]
   }
   depends_on = [
+    aws_lb_target_group.this,
     aws_lb_target_group.blue,
-    aws_lb_target_group.green
+    aws_lb_target_group.green,
   ]
 }
 
