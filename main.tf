@@ -475,6 +475,10 @@ resource "aws_ecs_service" "this" {
       network_configuration, // ignore because network configuration is changed by codedeploy
       desired_count,         // ignore because we're assuming you have autoscaling to manage the container count
     ]
+    replace_triggered_by = [
+      aws_lb.this,
+      aws_security_group.service,
+    ]
   }
 
   depends_on = [
