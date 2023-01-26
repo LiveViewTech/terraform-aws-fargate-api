@@ -131,13 +131,16 @@ resource "aws_security_group" "lb" {
   })
 }
 
-resource "random_id" "target_group" {
-  prefix      = "lvt-"
-  byte_length = 8
+resource "random_string" "target_group" {
+  length  = 8
+  lower   = true
+  numeric = true
+  upper   = false
+  special = false
 }
 
 resource "aws_lb_target_group" "blue" {
-  name = "${random_id.target_group.b64_url}-blue"
+  name = "lvt-${random_string.target_group.result}-blue"
 
   port     = var.container_port
   protocol = var.target_group_protocol
@@ -169,7 +172,7 @@ resource "aws_lb_target_group" "blue" {
 }
 
 resource "aws_lb_target_group" "green" {
-  name = "${random_id.target_group.b64_url}-green"
+  name = "lvt-${random_string.target_group.result}-green"
 
   port     = var.container_port
   protocol = var.target_group_protocol
@@ -200,7 +203,7 @@ resource "aws_lb_target_group" "green" {
 }
 
 resource "aws_lb_target_group" "this" {
-  name = random_id.target_group.b64_url
+  name = random_string.target_group.result
 
   port     = var.container_port
   protocol = var.target_group_protocol
@@ -244,6 +247,11 @@ resource "aws_lb_listener" "https" {
   }
   lifecycle {
     ignore_changes = [default_action[0].target_group_arn]
+    replace_triggered_by = [
+      aws_lb_target_group.this.arn,
+      aws_lb_target_group.blue.arn,
+      aws_lb_target_group.green.arn,
+    ]
   }
   depends_on = [
     aws_lb_target_group.this,
@@ -277,6 +285,11 @@ resource "aws_lb_listener" "test_listener" {
   }
   lifecycle {
     ignore_changes = [default_action[0].target_group_arn]
+    replace_triggered_by = [
+      aws_lb_target_group.this.arn,
+      aws_lb_target_group.blue.arn,
+      aws_lb_target_group.green.arn,
+    ]
   }
   depends_on = [
     aws_lb_target_group.this,
@@ -464,6 +477,13 @@ resource "aws_ecs_service" "this" {
       load_balancer,         // ignore because load balancer can change after code deploy's blue-green deployment
       network_configuration, // ignore because network configuration is changed by codedeploy
       desired_count,         // ignore because we're assuming you have autoscaling to manage the container count
+    ]
+    replace_triggered_by = [
+      aws_lb.this.arn,
+      aws_security_group.service.arn,
+      aws_lb_target_group.this.arn,
+      aws_lb_target_group.blue.arn,
+      aws_lb_target_group.green.arn,
     ]
   }
 
