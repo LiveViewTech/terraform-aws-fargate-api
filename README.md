@@ -9,7 +9,7 @@ customized solution you may need to use this code more as a pattern or guideline
 ## Usage
 ```hcl
 module "my_app" {
-  source = "bitbucket.org/liveviewtech/terraform-aws-fargate.git?ref=v1.1"
+  source = "bitbucket.org/liveviewtech/terraform-aws-fargate.git?ref=v1.2"
   
   name           = "example-api"
   container_port = 8000
