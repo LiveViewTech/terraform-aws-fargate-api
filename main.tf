@@ -248,9 +248,9 @@ resource "aws_lb_listener" "https" {
   lifecycle {
     ignore_changes = [default_action[0].target_group_arn]
     replace_triggered_by = [
-      aws_lb_target_group.this,
-      aws_lb_target_group.blue,
-      aws_lb_target_group.green,
+      aws_lb_target_group.this.arn,
+      aws_lb_target_group.blue.arn,
+      aws_lb_target_group.green.arn,
     ]
   }
   depends_on = [
@@ -286,9 +286,9 @@ resource "aws_lb_listener" "test_listener" {
   lifecycle {
     ignore_changes = [default_action[0].target_group_arn]
     replace_triggered_by = [
-      aws_lb_target_group.this,
-      aws_lb_target_group.blue,
-      aws_lb_target_group.green,
+      aws_lb_target_group.this.arn,
+      aws_lb_target_group.blue.arn,
+      aws_lb_target_group.green.arn,
     ]
   }
   depends_on = [
@@ -479,8 +479,11 @@ resource "aws_ecs_service" "this" {
       desired_count,         // ignore because we're assuming you have autoscaling to manage the container count
     ]
     replace_triggered_by = [
-      aws_lb.this,
-      aws_security_group.service,
+      aws_lb.this.arn,
+      aws_security_group.service.arn,
+      aws_lb_target_group.this.arn,
+      aws_lb_target_group.blue.arn,
+      aws_lb_target_group.green.arn,
     ]
   }
 

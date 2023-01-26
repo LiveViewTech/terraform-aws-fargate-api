@@ -10,16 +10,20 @@ terraform {
 
 provider "aws" {
   region  = "us-west-2"
-  profile = "default"
+  profile = "lvt-service-web-dev"
 }
 
 module "acs" {
   source  = "bitbucket.org/liveviewtech/terraform-aws-acs-info.git?ref=v1"
-  profile = "default"
+  profile = "lvt-service-web-dev"
 }
 
 resource "aws_ecs_cluster" "example" {
   name = "hello-world"
+}
+
+data "aws_security_group" "auth_db_access" {
+  name = "mk2-auth-db-access"
 }
 
 module "example" {
@@ -43,6 +47,10 @@ module "example" {
     codedeploy_service_role_arn      = module.acs.powerbuilder_role.arn
     codedeploy_termination_wait_time = 0
   }
+
+  security_groups = [
+    data.aws_security_group.auth_db_access.id,
+  ]
 
   deployment_config_filename = "${path.module}/deployment-config.json"
 
