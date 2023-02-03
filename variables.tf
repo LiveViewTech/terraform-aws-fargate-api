@@ -238,3 +238,8 @@ variable "fargate_platform_version" {
   default     = "1.4.0"
 }
 
+variable "https_listener_rules" {
+  type        = any
+  default     = []
+  description = "A list of forward rules used on the HTTPS listener. Defaults to []"
+}

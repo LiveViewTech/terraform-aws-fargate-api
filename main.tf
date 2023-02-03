@@ -241,9 +241,24 @@ resource "aws_lb_listener" "https" {
 
   ssl_policy = "ELBSecurityPolicy-FS-1-2-2019-08"
 
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.blue.arn
+  dynamic "default_action" {
+    for_each = var.https_listener_rules != [] ? ["this"] : []
+    content {
+      type     = "fixed-response"
+
+      fixed_response {
+        content_type = "text/plain"
+        message_body = "Forbidden"
+        status_code  = "403"
+      }
+    }
+  }
+  dynamic "default_action" {
+    for_each         = var.https_listener_rules == [] ? ["this"] : []
+    content {
+      type             = "forward"
+      target_group_arn = aws_lb_target_group.blue.arn
+    }
   }
   lifecycle {
     ignore_changes = [default_action[0].target_group_arn]
@@ -258,6 +273,120 @@ resource "aws_lb_listener" "https" {
     aws_lb_target_group.blue,
     aws_lb_target_group.green,
   ]
+}
+
+resource "aws_lb_listener_rule" "this" {
+  count        = length(var.https_listener_rules) > 0 ? length(var.https_listener_rules) : 0
+  listener_arn = aws_lb_listener.https.arn
+  priority     = lookup(var.https_listener_rules[count.index], "priority", null)
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.blue.arn
+  }
+
+  lifecycle {
+    ignore_changes = [action[0].target_group_arn]
+  }
+
+  # Path Pattern condition
+  dynamic "condition" {
+    for_each = [
+      for condition_rule in var.https_listener_rules[count.index].conditions :
+      condition_rule
+      if length(lookup(condition_rule, "path_patterns", [])) > 0
+    ]
+    content {
+      path_pattern {
+        values = condition.value["path_patterns"]
+      }
+    }
+  }
+
+  # Host header condition
+  dynamic "condition" {
+    for_each = [
+      for condition_rule in var.https_listener_rules[count.index].conditions :
+      condition_rule
+      if length(lookup(condition_rule, "host_headers", [])) > 0
+    ]
+
+    content {
+      host_header {
+        values = condition.value["host_headers"]
+      }
+    }
+  }
+
+  # Http header condition
+  dynamic "condition" {
+    for_each = [
+      for condition_rule in var.https_listener_rules[count.index].conditions :
+      condition_rule
+      if length(lookup(condition_rule, "http_headers", [])) > 0
+    ]
+
+    content {
+      dynamic "http_header" {
+        for_each = condition.value["http_headers"]
+
+        content {
+          http_header_name = http_header.value["http_header_name"]
+          values           = http_header.value["values"]
+        }
+      }
+    }
+  }
+
+  # Http request method condition
+  dynamic "condition" {
+    for_each = [
+      for condition_rule in var.https_listener_rules[count.index].conditions :
+      condition_rule
+      if length(lookup(condition_rule, "http_request_methods", [])) > 0
+    ]
+
+    content {
+      http_request_method {
+        values = condition.value["http_request_methods"]
+      }
+    }
+  }
+
+  # Query string condition
+  dynamic "condition" {
+    for_each = [
+      for condition_rule in var.https_listener_rules[count.index].conditions :
+      condition_rule
+      if length(lookup(condition_rule, "query_strings", [])) > 0
+    ]
+
+    content {
+      dynamic "query_string" {
+        for_each = condition.value["query_strings"]
+
+        content {
+          key   = lookup(query_string.value, "key", null)
+          value = query_string.value["value"]
+        }
+      }
+    }
+  }
+
+  # Source IP address condition
+  dynamic "condition" {
+    for_each = [
+      for condition_rule in var.https_listener_rules[count.index].conditions :
+      condition_rule
+      if length(lookup(condition_rule, "source_ips", [])) > 0
+    ]
+
+    content {
+      source_ip {
+        values = condition.value["source_ips"]
+      }
+    }
+  }
 }
 
 resource "aws_lb_listener" "http_redirect" {

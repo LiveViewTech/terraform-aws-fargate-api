@@ -9,7 +9,7 @@ customized solution you may need to use this code more as a pattern or guideline
 ## Usage
 ```hcl
 module "my_app" {
-  source = "bitbucket.org/liveviewtech/terraform-aws-fargate.git?ref=v1.2"
+  source = "bitbucket.org/liveviewtech/terraform-aws-fargate.git?ref=v1.3"
   
   name           = "example-api"
   container_port = 8000
@@ -81,6 +81,7 @@ module "my_app" {
 | health_check_healthy_threshold    | number                                | Number of consecutive health checks required before considering target as healthy                                                                                                                                                       | 3          |
 | health_check_unhealthy_threshold  | number                                | Number of consecutive failed health checks required before considering target as unhealthy                                                                                                                                              | 3          |
 | health_check_grace_period         | number                                | Health check grace period in seconds                                                                                                                                                                                                    | 0          |
+| https_listener_rules              | [object](#https_listener_rules)       | Listener rules and conditions. 
 | task_policies                     | list(string)                          | List of IAM Policy ARNs to attach to the task execution IAM Policy                                                                                                                                                                      | []         |
 | task_cpu                          | number                                | CPU for the task definition                                                                                                                                                                                                             | 256        |
 | task_memory                       | number                                | Memory for the task definition                                                                                                                                                                                                          | 512        |
@@ -159,6 +160,13 @@ a specific lifecycle hook function.
 You can pass in either the object from the AWS terraform provider for an AWS Hosted Zone, or just an object with the following attributes:
 * **`name`** - (Required) Name of the hosted zone
 * **`id`** - (Required) ID of the hosted zone
+
+#### https_listener_rules
+You can use this object to create rules within the HTTPS listener to forward only certain traffic to your application. This is a list of maps describing the Listener Rules for this ALB. Priority is set by index of each rule within the map. See [conditional blocks](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_listener_rule#condition-blocks) for more details on what conditions can be added. All other traffic not matching rules will be sent a 403 status code.
+* **`conditions`** - (Required) List of conditions. (See examples folder to view full config)
+
+**Note:** If you change/add/delete this block after initial creation make sure the active target group on your alb listener is forwarding to blue. If you do not you may lose access to your application and cause traffic to be dropped!
+
 
 #### autoscaling_config
 This module will create basic default autoscaling policies and alarms and you can define some variables of these default autoscaling policies.
