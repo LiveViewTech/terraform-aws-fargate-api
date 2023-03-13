@@ -335,7 +335,8 @@ data "aws_iam_policy_document" "task_execution_policy" {
 }
 
 resource "aws_iam_role" "task_execution_role" {
-  name                 = "${local.name}_task-execution-role"
+  path                 = "/${local.name}/"
+  name                 = "task-execution-role"
   assume_role_policy   = data.aws_iam_policy_document.task_execution_policy.json
   permissions_boundary = var.role_permissions_boundary_arn
   tags                 = var.tags
@@ -363,7 +364,8 @@ data "aws_iam_policy_document" "secrets_access" {
 
 resource "aws_iam_policy" "secrets_access" {
   count  = local.has_secrets ? 1 : 0
-  name   = "${local.name}_secrets-access"
+  path   = "/${local.name}/"
+  name   = "secrets-access"
   policy = data.aws_iam_policy_document.secrets_access[0].json
 }
 
@@ -386,7 +388,8 @@ data "aws_iam_policy_document" "task_policy" {
 }
 
 resource "aws_iam_role" "task_role" {
-  name                 = "${local.name}_task-role"
+  path                 = "/${local.name}/"
+  name                 = "task-role"
   assume_role_policy   = data.aws_iam_policy_document.task_policy.json
   permissions_boundary = var.role_permissions_boundary_arn
   tags                 = var.tags
@@ -511,7 +514,7 @@ resource "aws_appautoscaling_target" "default" {
 
 resource "aws_appautoscaling_policy" "up" {
   count              = var.autoscaling_config != null ? 1 : 0
-  name               = "${local.name}_autoscale-up"
+  name               = "${local.name}/scale-up"
   resource_id        = aws_appautoscaling_target.default[0].resource_id
   scalable_dimension = aws_appautoscaling_target.default[0].scalable_dimension
   service_namespace  = aws_appautoscaling_target.default[0].service_namespace
@@ -530,7 +533,7 @@ resource "aws_appautoscaling_policy" "up" {
 
 resource "aws_cloudwatch_metric_alarm" "up" {
   count      = var.autoscaling_config != null ? 1 : 0
-  alarm_name = "${local.name}_alarm-up"
+  alarm_name = "${local.name}/scale-up"
   namespace  = "AWS/ECS"
   dimensions = {
     ClusterName = var.ecs_cluster_name
@@ -548,7 +551,7 @@ resource "aws_cloudwatch_metric_alarm" "up" {
 
 resource "aws_appautoscaling_policy" "down" {
   count              = var.autoscaling_config != null ? 1 : 0
-  name               = "${local.name}_autoscale-down"
+  name               = "${local.name}/scale-down"
   resource_id        = aws_appautoscaling_target.default[0].resource_id
   scalable_dimension = aws_appautoscaling_target.default[0].scalable_dimension
   service_namespace  = aws_appautoscaling_target.default[0].service_namespace
@@ -567,7 +570,7 @@ resource "aws_appautoscaling_policy" "down" {
 
 resource "aws_cloudwatch_metric_alarm" "down" {
   count      = var.autoscaling_config != null ? 1 : 0
-  alarm_name = "${local.name}_alarm-down"
+  alarm_name = "${local.name}/scale-down"
   namespace  = "AWS/ECS"
   dimensions = {
     ClusterName = var.ecs_cluster_name
