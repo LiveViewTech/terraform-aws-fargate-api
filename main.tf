@@ -203,7 +203,7 @@ resource "aws_lb_target_group" "green" {
 }
 
 resource "aws_lb_target_group" "this" {
-  name = random_string.target_group.result
+  name = "lvt-${random_string.target_group.result}"
 
   port     = var.container_port
   protocol = var.target_group_protocol
