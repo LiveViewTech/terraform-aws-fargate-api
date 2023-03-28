@@ -57,3 +57,7 @@ output "task_role" {
 output "task_execution_role" {
   value = aws_iam_role.task_execution_role
 }
+
+output "target_group_id" {
+  value = random_string.target_group.result
+}
