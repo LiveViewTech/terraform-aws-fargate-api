@@ -243,3 +243,8 @@ variable "https_listener_rules" {
   default     = []
   description = "A list of forward rules used on the HTTPS listener. Defaults to []"
 }
+
+variable "arm" {
+  type    = bool
+  default = false
+}

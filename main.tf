@@ -244,7 +244,7 @@ resource "aws_lb_listener" "https" {
   dynamic "default_action" {
     for_each = var.https_listener_rules != [] ? ["this"] : []
     content {
-      type     = "fixed-response"
+      type = "fixed-response"
 
       fixed_response {
         content_type = "text/plain"
@@ -254,7 +254,7 @@ resource "aws_lb_listener" "https" {
     }
   }
   dynamic "default_action" {
-    for_each         = var.https_listener_rules == [] ? ["this"] : []
+    for_each = var.https_listener_rules == [] ? ["this"] : []
     content {
       type             = "forward"
       target_group_arn = aws_lb_target_group.blue.arn
@@ -542,7 +542,13 @@ resource "aws_ecs_task_definition" "this" {
   requires_compatibilities = ["FARGATE"]
   execution_role_arn       = aws_iam_role.task_execution_role.arn
   task_role_arn            = aws_iam_role.task_role.arn
-  tags                     = var.tags
+
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = var.arm ? "ARM64" : "X86_64"
+  }
+
+  tags = var.tags
 }
 
 resource "aws_security_group" "service" {
