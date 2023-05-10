@@ -554,6 +554,8 @@ resource "aws_ecs_task_definition" "this" {
   execution_role_arn       = aws_iam_role.task_execution_role.arn
   task_role_arn            = aws_iam_role.task_role.arn
 
+  skip_destroy = true
+
   runtime_platform {
     operating_system_family = "LINUX"
     cpu_architecture        = var.arm ? "ARM64" : "X86_64"
