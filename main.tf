@@ -11,7 +11,10 @@ data "aws_region" "current" {}
 locals {
   name        = var.name_prefix != null ? "${var.name_prefix}-${var.name}" : var.name
   definitions = concat([var.primary_container_definition], var.extra_container_definitions)
-
+  volumes = distinct(flatten([
+    for def in local.definitions :
+    try(def.efs_volume_mounts, null) != null ? def.efs_volume_mounts : []
+  ]))
   ssm_parameters = distinct(flatten([
     for def in local.definitions :
     values(def.secrets != null ? def.secrets : {})
@@ -61,6 +64,14 @@ locals {
         {
           name      = key
           valueFrom = "${local.ssm_parameter_arn_base}${replace(lookup(def.secrets, key), "/^//", "")}"
+        }
+      ]
+      mountPoints = [
+        for mount in(try(def.efs_volume_mounts, null) != null ? def.efs_volume_mounts : []) :
+        {
+          containerPath = mount.container_path
+          sourceVolume  = mount.name
+          readOnly      = false
         }
       ]
       # exclude values that we manage for the user (secrets, env vars, etc)
@@ -546,6 +557,17 @@ resource "aws_ecs_task_definition" "this" {
   runtime_platform {
     operating_system_family = "LINUX"
     cpu_architecture        = var.arm ? "ARM64" : "X86_64"
+  }
+
+  dynamic "volume" {
+    for_each = local.volumes
+    content {
+      name = volume.value.name
+      efs_volume_configuration {
+        file_system_id = volume.value.file_system_id
+        root_directory = volume.value.root_directory
+      }
+    }
   }
 
   tags = var.tags
