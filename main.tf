@@ -96,7 +96,9 @@ resource "aws_lb" "this" {
   security_groups = [aws_security_group.lb.id]
   internal        = var.internal
 
-  tags = var.tags
+  tags = merge(tomap({
+    WAF = true
+  }), var.tags)
 }
 
 resource "aws_security_group" "lb" {
