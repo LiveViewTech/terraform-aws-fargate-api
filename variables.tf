@@ -248,3 +248,11 @@ variable "arm" {
   type    = bool
   default = false
 }
+
+variable "access_logs" {
+  type = object({
+    bucket = string
+    prefix = string
+  })
+  default = null
+}

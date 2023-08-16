@@ -96,6 +96,15 @@ resource "aws_lb" "this" {
   security_groups = [aws_security_group.lb.id]
   internal        = var.internal
 
+  dynamic "access_logs" {
+    for_each = var.access_logs != null ? [var.access_logs] : []
+    content {
+      bucket  = access_logs.value.bucket
+      prefix  = coalesce(access_logs.value.prefix, local.name)
+      enabled = true
+    }
+  }
+
   tags = var.tags
 }
 
