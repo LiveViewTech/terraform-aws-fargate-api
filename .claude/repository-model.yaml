@@ -1,0 +1,286 @@
+version: 1
+facts:
+  languages:
+    - id: lang-hcl
+      value: HCL
+      evidence:
+        - main.tf
+        - variables.tf
+        - outputs.tf
+  frameworks:
+    - id: fw-terraform
+      value: Terraform
+      evidence:
+        - main.tf
+        - README.md
+    - id: fw-terraform-aws-provider
+      value: hashicorp/aws
+      evidence:
+        - main.tf
+        - examples/basic/main.tf
+  commands: []
+  entry_points:
+    - id: entry-main-tf
+      value: main.tf
+      evidence:
+        - main.tf
+    - id: entry-example-basic
+      value: examples/basic/main.tf
+      evidence:
+        - examples/basic/main.tf
+    - id: entry-example-with-rules
+      value: examples/with_rules/main.tf
+      evidence:
+        - examples/with_rules/main.tf
+  components:
+    - id: comp-root-module
+      name: root-module
+      path: .
+      evidence:
+        - main.tf
+        - variables.tf
+        - outputs.tf
+        - README.md
+    - id: comp-example-basic
+      name: example-basic
+      path: examples/basic
+      evidence:
+        - examples/basic/main.tf
+        - examples/basic/.gitignore
+    - id: comp-example-with-rules
+      name: example-with-rules
+      path: examples/with_rules
+      evidence:
+        - examples/with_rules/main.tf
+        - examples/with_rules/.gitignore
+  dependencies:
+    - id: dep-hashicorp-aws
+      name: hashicorp/aws
+      type: external
+      evidence:
+        - main.tf
+        - examples/basic/main.tf
+    - id: dep-hashicorp-random
+      name: hashicorp/random
+      type: external
+      evidence:
+        - main.tf
+    - id: dep-hashicorp-local
+      name: hashicorp/local
+      type: external
+      evidence:
+        - main.tf
+    - id: dep-terraform-aws-acs-info
+      name: terraform-aws-acs-info
+      type: external
+      evidence:
+        - examples/basic/main.tf
+        - examples/with_rules/main.tf
+  external_services:
+    - id: svc-aws-ecs
+      value: AWS ECS / Fargate
+      evidence:
+        - main.tf
+        - README.md
+    - id: svc-aws-alb
+      value: AWS Application Load Balancer
+      evidence:
+        - main.tf
+        - README.md
+    - id: svc-aws-codedeploy
+      value: AWS CodeDeploy
+      evidence:
+        - main.tf
+        - README.md
+    - id: svc-aws-route53
+      value: AWS Route53
+      evidence:
+        - main.tf
+        - README.md
+    - id: svc-aws-cloudwatch
+      value: AWS CloudWatch Logs and Alarms
+      evidence:
+        - main.tf
+        - README.md
+    - id: svc-aws-ssm
+      value: AWS Systems Manager Parameter Store
+      evidence:
+        - main.tf
+    - id: svc-aws-iam
+      value: AWS IAM
+      evidence:
+        - main.tf
+        - variables.tf
+    - id: svc-aws-acm
+      value: AWS Certificate Manager
+      evidence:
+        - variables.tf
+        - main.tf
+  testing: []
+analysis:
+  purpose:
+    value: Reusable Terraform module that provisions a standardized AWS Fargate HTTP API behind an ALB with Route53 DNS, optional autoscaling, and CodeDeploy blue-green deployments.
+    confidence: high
+    evidence_refs:
+      - lang-hcl
+      - fw-terraform
+      - entry-main-tf
+      - comp-root-module
+      - svc-aws-ecs
+      - svc-aws-alb
+      - svc-aws-codedeploy
+  architecture:
+    value: Consumer modules pass VPC, subnets, hosted zone, certificate, container definition, and CodeDeploy role inputs into the root module; the module creates ALB plus blue/green target groups, ECS task definition and service (CODE_DEPLOY controller), IAM roles, CloudWatch log group, Route53 records, optional App Auto Scaling, and CodeDeploy app/group, then optionally writes appspec and deployment-config JSON via local_file for deploy pipelines.
+    confidence: high
+    evidence_refs:
+      - entry-main-tf
+      - comp-root-module
+      - svc-aws-ecs
+      - svc-aws-alb
+      - svc-aws-codedeploy
+      - svc-aws-route53
+      - dep-hashicorp-local
+      - entry-example-basic
+  patterns:
+    - id: pat-codedeploy-ignore-changes
+      value: aws_ecs_service.this uses lifecycle.ignore_changes on task_definition, load_balancer, network_configuration, and desired_count so CodeDeploy/autoscaling own those fields after first apply.
+      confidence: high
+      evidence_refs:
+        - entry-main-tf
+        - svc-aws-codedeploy
+    - id: pat-listener-rules-default-403
+      value: When https_listener_rules is non-empty, the HTTPS listener default action is a fixed 403 Forbidden and only matching listener rules forward to the blue target group.
+      confidence: high
+      evidence_refs:
+        - entry-main-tf
+        - entry-example-with-rules
+        - comp-example-with-rules
+    - id: pat-generated-deploy-artifacts
+      value: Optional local_file resources write appspec and deployment-config JSON when appspec_filename or deployment_config_filename is set.
+      confidence: high
+      evidence_refs:
+        - entry-main-tf
+        - dep-hashicorp-local
+    - id: pat-ssm-secrets-injection
+      value: Container secrets maps are turned into SSM parameter ARNs and IAM secrets_access policies attached to task and execution roles.
+      confidence: high
+      evidence_refs:
+        - entry-main-tf
+        - svc-aws-ssm
+        - svc-aws-iam
+    - id: pat-tg-random-suffix
+      value: Target group names use an lvt- prefix plus random_string suffix (blue/green/this) to stay unique within ALB constraints.
+      confidence: high
+      evidence_refs:
+        - entry-main-tf
+        - dep-hashicorp-random
+  component_notes:
+    - ref: comp-root-module
+      purpose: Core reusable module implementing Fargate service, ALB blue/green wiring, IAM, logging, DNS, autoscaling, and CodeDeploy resources from variables.tf inputs.
+      confidence: high
+    - ref: comp-example-basic
+      purpose: Minimal consumer example wiring the module to an external ECS cluster, ACS info module outputs, and a hello-world container image for local testing via source = "../../".
+      confidence: high
+    - ref: comp-example-with-rules
+      purpose: Consumer example demonstrating https_listener_rules path/header/method/query/source-IP conditions on top of the same basic wiring.
+      confidence: high
+  service_notes:
+    - ref: svc-aws-ecs
+      purpose: Runs the Fargate task definition and service; cluster name is supplied by the consumer.
+      integration: aws_ecs_task_definition.this and aws_ecs_service.this with launch_type FARGATE and deployment_controller CODE_DEPLOY.
+      confidence: high
+    - ref: svc-aws-alb
+      purpose: Terminates HTTPS, optional HTTP redirect, and optional CodeDeploy test listener; forwards to blue/green target groups.
+      integration: aws_lb.this plus listeners and aws_lb_target_group.blue/green/this.
+      confidence: high
+    - ref: svc-aws-codedeploy
+      purpose: Owns blue-green traffic shifting for the ECS service after Terraform creates the app and deployment group.
+      integration: aws_codedeploy_app.this and aws_codedeploy_deployment_group.this using codedeploy_config inputs; appspec content exported for pipelines.
+      confidence: high
+    - ref: svc-aws-route53
+      purpose: Publishes A/AAAA aliases from the hosted zone to the ALB DNS name.
+      integration: aws_route53_record.a_record and aaaa_record using var.hosted_zone and local.app_domain_url.
+      confidence: high
+    - ref: svc-aws-ssm
+      purpose: Source of container secret values referenced by name/path in container definitions.
+      integration: local.secrets_arns and secrets valueFrom ARNs on task definitions plus secrets_access IAM policy.
+      confidence: high
+  dangerous_areas:
+    - id: danger-listener-rules-active-tg
+      value: https_listener_rules changes while the ALB listener is not forwarding to the blue target group
+      reason: README warns that changing rules when the active target group is not blue can drop traffic; Terraform also ignore_changes the listener default_action target_group_arn and rule action target_group_arn because CodeDeploy mutates them.
+      confidence: high
+      evidence_refs:
+        - entry-main-tf
+        - entry-example-with-rules
+    - id: danger-ecs-lifecycle-ignores
+      value: ECS service lifecycle ignore_changes on task_definition, load_balancer, network_configuration, desired_count
+      reason: Subsequent terraform apply will not converge those attributes; updates are expected to go through CodeDeploy or autoscaling, which surprises operators who only run Terraform.
+      confidence: high
+      evidence_refs:
+        - entry-main-tf
+        - svc-aws-codedeploy
+    - id: danger-codedeploy-config-null
+      value: codedeploy_config defaults to null but CodeDeploy resources always dereference it
+      reason: variables.tf defaults codedeploy_config to null and README says set null to use your own strategy, yet main.tf always creates aws_codedeploy_* resources and reads var.codedeploy_config fields (and locals.codedeploy_test_listener_port), so a null value fails plan/apply.
+      confidence: high
+      evidence_refs:
+        - entry-main-tf
+        - comp-root-module
+    - id: danger-replace-triggered-by
+      value: aws_ecs_service replace_triggered_by on ALB, security group, and target groups
+      reason: Changes that recreate those dependencies force ECS service replacement in addition to CodeDeploy blue-green flows, which can cause unexpected downtime.
+      confidence: medium
+      evidence_refs:
+        - entry-main-tf
+  questions:
+    - id: q-ecs-cluster-auto-create
+      question: README Created Resources and ecs_cluster_name docs claim the module creates an ECS cluster when one is not provided, but main.tf has no aws_ecs_cluster resource and passes var.ecs_cluster_name directly into the service, autoscaling, alarms, and CodeDeploy. Which behavior is intended?
+      area: documentation-vs-code
+      priority: high
+      evidence_refs:
+        - entry-main-tf
+        - comp-root-module
+        - entry-example-basic
+    - id: q-readme-input-output-drift
+      question: README input/output names diverge from variables.tf/outputs.tf (for example alb_internal_flag vs internal, lb_logging_* vs access_logs, target_group_sticky_sessions vs sticky_sessions, and several output names). Should README be regenerated from the current module interface?
+      area: documentation
+      priority: high
+      evidence_refs:
+        - comp-root-module
+    - id: q-codedeploy-optionality
+      question: Is CodeDeploy meant to be optional? README and variable default suggest null disables module-managed CodeDeploy, but ECS always sets deployment_controller CODE_DEPLOY and CodeDeploy resources are unconditional.
+      area: deployment
+      priority: high
+      evidence_refs:
+        - entry-main-tf
+        - svc-aws-codedeploy
+    - id: q-efs-volume-support
+      question: README and extra_container_definitions type document efs_volume_mounts, but aws_ecs_task_definition.this has no volume blocks. Is EFS mounting incomplete, unused, or implemented elsewhere?
+      area: storage
+      priority: medium
+      evidence_refs:
+        - entry-main-tf
+        - comp-root-module
+    - id: q-acs-powerbuilder-role
+      question: Examples depend on bitbucket.org/liveviewtech/terraform-aws-acs-info and module.acs.powerbuilder_role. What does ACS provide and what permissions must the CodeDeploy service role have? Cannot verify from this repo alone.
+      area: external-module
+      priority: medium
+      evidence_refs:
+        - dep-terraform-aws-acs-info
+        - entry-example-basic
+        - svc-aws-codedeploy
+    - id: q-module-source-location
+      question: README usage cites bitbucket.org/liveviewtech/terraform-aws-fargate.git while this GitHub remote is LiveViewTech/terraform-aws-fargate-api and examples comment bitbucket terraform-aws-fargate-api. Which source URL and version tags should consumers use?
+      area: distribution
+      priority: medium
+      evidence_refs:
+        - entry-example-basic
+        - comp-root-module
+    - id: q-log-group-naming
+      question: README CloudWatch logs section describes group name fargate/<app_name>, but main.tf sets local.cloudwatch_log_group_name to /${name} or /${name_prefix}/${name}. Which naming convention is current?
+      area: observability
+      priority: low
+      evidence_refs:
+        - entry-main-tf
+        - svc-aws-cloudwatch
