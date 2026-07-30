@@ -36,8 +36,8 @@ Same sequence under `examples/with_rules/`. Module source for local testing is `
 ## Directory Map
 
 - `./` — root module (`main.tf`, `variables.tf`, `outputs.tf`)
-- `examples/basic/` → see `examples/basic/AGENTS.md`
-- `examples/with_rules/` → see `examples/with_rules/AGENTS.md`
+- `examples/basic/` — minimal consumer (ECS cluster + ACS + nginx + CodeDeploy test listener on 8443)
+- `examples/with_rules/` — same baseline plus `https_listener_rules` (path/header/method/query/source-IP)
 
 ## Architecture
 
@@ -48,4 +48,5 @@ Inputs (VPC, subnets, hosted zone, ACM cert, container definition, CodeDeploy ro
 - `codedeploy_config` defaults to `null` in `variables.tf` and README suggests null means “bring your own,” but `main.tf` always creates CodeDeploy resources and dereferences `var.codedeploy_config` — omit it and plan fails.
 - README says the module can create an ECS cluster; root module does not — callers must supply `ecs_cluster_name` (examples create `aws_ecs_cluster.example`).
 - `replace_triggered_by` on the ECS service: recreating the ALB, service SG, or target groups forces service replacement (`main.tf`).
+- HTTPS listener and listener rules ignore `target_group_arn` drift after CodeDeploy shifts traffic — Terraform will not reset them to blue (`main.tf`).
 - README input/output names drift from `variables.tf` / `outputs.tf` (e.g. `internal` vs documented `alb_internal_flag`, `access_logs` vs `lb_logging_*`). Trust the `.tf` files.
